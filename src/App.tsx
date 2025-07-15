@@ -757,7 +757,7 @@ function App() {
                         {estadisticasDelSocio.totalEntradas}
                       </div>
                       <div className="text-sm text-gray-600">
-                        Total Entradas
+                        Total Reses
                       </div>
                     </div>
                     <div className="text-center">
