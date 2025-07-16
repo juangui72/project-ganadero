@@ -146,67 +146,6 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
     
     onSave(validReasons);
   };
-      setVentasData({
-        cantidad: newCantidad,
-        valor_kilo_venta: 0,
-        total_kilos_venta: 0
-      });
-      setShowVentasModal(true);
-    }
-    
-    setExitReasons(prev => 
-      prev.map(entry => 
-        entry.causa === causa 
-          ? { ...entry, cantidad: newCantidad }
-          : entry
-      )
-    );
-    setError('');
-  };
-
-  const handleObservacionesChange = (causa: CausaSalida, observacion: string) => {
-    setObservaciones(prev => ({
-      ...prev,
-      [causa]: observacion
-    }));
-  };
-
-  const handleVentasModalSave = () => {
-    setExitReasons(prev => 
-      prev.map(entry => 
-        entry.causa === 'ventas' 
-          ? { 
-              ...entry, 
-              cantidad: ventasData.cantidad,
-              valor_kilo_venta: ventasData.valor_kilo_venta,
-              total_kilos_venta: ventasData.total_kilos_venta,
-              observaciones: 'venta'
-            }
-          : entry
-      )
-    );
-    setShowVentasModal(false);
-  };
-
-  const getTotalAssigned = () => {
-    return exitReasons.reduce((sum, entry) => sum + entry.cantidad, 0);
-  };
-
-  const handleSave = () => {
-    const totalAssigned = getTotalAssigned();
-    
-    if (totalAssigned !== totalExits) {
-      setError(`El total asignado (${totalAssigned}) debe ser igual al total de salidas (${totalExits})`);
-      return;
-    }
-
-    // Filter out entries with 0 quantity
-    const validReasons = exitReasons.filter(entry => entry.cantidad > 0).map(entry => ({
-      ...entry,
-      observaciones: observaciones[entry.causa] || (entry.causa === 'ventas' ? 'venta' : '')
-    }));
-    onSave(validReasons);
-  };
 
   const getIconForCause = (causa: CausaSalida) => {
     switch (causa) {
