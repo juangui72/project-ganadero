@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertTriangle, DollarSign, Skull, Shield } from 'lucide-react';
+import { X, AlertTriangle, DollarSign, Skull, Shield, MessageSquare } from 'lucide-react';
 import { supabase, CausaSalida, causaSalidaLabels } from '../lib/supabase';
 
 interface ExitReasonsModalProps {
@@ -16,6 +16,9 @@ interface ExitReasonsModalProps {
 export interface ExitReasonEntry {
   causa: CausaSalida;
   cantidad: number;
+  observaciones?: string;
+  valor_kilo_venta?: number;
+  total_kilos_venta?: number;
 }
 
 const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
@@ -30,6 +33,17 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
 }) => {
   const [exitReasons, setExitReasons] = useState<ExitReasonEntry[]>([]);
   const [error, setError] = useState<string>('');
+  const [showVentasModal, setShowVentasModal] = useState(false);
+  const [ventasData, setVentasData] = useState({
+    cantidad: 0,
+    valor_kilo_venta: 0,
+    total_kilos_venta: 0
+  });
+  const [observaciones, setObservaciones] = useState<Record<CausaSalida, string>>({
+    ventas: 'venta',
+    muerte: '',
+    robo: ''
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -43,19 +57,60 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
           { causa: 'robo', cantidad: 0 }
         ]);
       }
+      setObservaciones({
+        ventas: 'venta',
+        muerte: '',
+        robo: ''
+      });
       setError('');
     }
   }, [isOpen, existingReasons]);
 
   const handleQuantityChange = (causa: CausaSalida, cantidad: number) => {
+    const newCantidad = Math.max(0, cantidad);
+    
+    // Si es ventas y se ingresa una cantidad > 0, abrir modal de ventas
+    if (causa === 'ventas' && newCantidad > 0 && cantidad !== exitReasons.find(e => e.causa === 'ventas')?.cantidad) {
+      setVentasData({
+        cantidad: newCantidad,
+        valor_kilo_venta: 0,
+        total_kilos_venta: 0
+      });
+      setShowVentasModal(true);
+    }
+    
     setExitReasons(prev => 
       prev.map(entry => 
         entry.causa === causa 
-          ? { ...entry, cantidad: Math.max(0, cantidad) }
+          ? { ...entry, cantidad: newCantidad }
           : entry
       )
     );
     setError('');
+  };
+
+  const handleObservacionesChange = (causa: CausaSalida, observacion: string) => {
+    setObservaciones(prev => ({
+      ...prev,
+      [causa]: observacion
+    }));
+  };
+
+  const handleVentasModalSave = () => {
+    setExitReasons(prev => 
+      prev.map(entry => 
+        entry.causa === 'ventas' 
+          ? { 
+              ...entry, 
+              cantidad: ventasData.cantidad,
+              valor_kilo_venta: ventasData.valor_kilo_venta,
+              total_kilos_venta: ventasData.total_kilos_venta,
+              observaciones: 'venta'
+            }
+          : entry
+      )
+    );
+    setShowVentasModal(false);
   };
 
   const getTotalAssigned = () => {
@@ -71,7 +126,10 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
     }
 
     // Filter out entries with 0 quantity
-    const validReasons = exitReasons.filter(entry => entry.cantidad > 0);
+    const validReasons = exitReasons.filter(entry => entry.cantidad > 0).map(entry => ({
+      ...entry,
+      observaciones: observaciones[entry.causa] || (entry.causa === 'ventas' ? 'venta' : '')
+    }));
     onSave(validReasons);
   };
 
@@ -170,6 +228,23 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
                     placeholder="0"
                   />
                 </div>
+                
+                {/* Campo de observaciones para muerte y robo */}
+                {(entry.causa === 'muerte' || entry.causa === 'robo') && entry.cantidad > 0 && (
+                  <div className="mt-3">
+                    <label className="text-sm text-gray-600 block mb-1">
+                      <MessageSquare className="w-4 h-4 inline mr-1" />
+                      Observaciones:
+                    </label>
+                    <textarea
+                      value={observaciones[entry.causa]}
+                      onChange={(e) => handleObservacionesChange(entry.causa, e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors resize-none"
+                      rows={2}
+                      placeholder={`Motivo de ${entry.causa}...`}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -201,6 +276,93 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
             </div>
           </div>
         </div>
+        
+        {/* Modal de Ventas */}
+        {showVentasModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <DollarSign className="w-5 h-5 mr-2 text-green-600" />
+                  Detalles de Venta
+                </h4>
+                <button
+                  onClick={() => setShowVentasModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cantidad de animales vendidos
+                  </label>
+                  <input
+                    type="number"
+                    value={ventasData.cantidad}
+                    onChange={(e) => setVentasData(prev => ({ ...prev, cantidad: parseInt(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                    min="0"
+                    max={totalExits}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Valor por Kg de Venta
+                  </label>
+                  <input
+                    type="number"
+                    value={ventasData.valor_kilo_venta}
+                    onChange={(e) => setVentasData(prev => ({ ...prev, valor_kilo_venta: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Kg Vendidos
+                  </label>
+                  <input
+                    type="number"
+                    value={ventasData.total_kilos_venta}
+                    onChange={(e) => setVentasData(prev => ({ ...prev, total_kilos_venta: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <div className="text-sm text-green-700">
+                    <strong>Total Venta:</strong> ${Math.round(ventasData.valor_kilo_venta * ventasData.total_kilos_venta).toLocaleString('es-CO')}
+                  </div>
+                </div>
+                
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    onClick={() => setShowVentasModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleVentasModalSave}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Guardar Venta
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

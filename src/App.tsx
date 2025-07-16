@@ -201,35 +201,128 @@ function App() {
   };
 
   const handleSalidasChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      salidas: value
+      [name]: value
     }));
+  };
 
-    // Si hay salidas, mostrar el modal para especificar las causas
-    if (parseInt(value) > 0) {
-      setSelectedRegistroForExits({
-        id: '',
-        socio: formData.socio,
-        fecha: formData.fecha,
-        entradas: parseInt(formData.entradas) || 0,
-        salidas: parseInt(value) || 0,
-        saldo: 0,
-        kg_totales: parseFloat(formData.kgTotales) || 0,
-        vr_kilo: parseFloat(formData.vrKilo) || 0,
-        fletes: parseFloat(formData.fletes) || 0,
-        comision: parseFloat(formData.comision) || 0,
-        valor_animal: 0,
-        total: 0
-      });
-      setShowExitReasonsModal(true);
-    }
+  const handleSalidasClick = () => {
+    // Abrir modal sin importar si hay valor o no
+    setSelectedRegistroForExits({
+      id: '',
+      socio: formData.socio,
+      fecha: formData.fecha,
+      entradas: parseInt(formData.entradas) || 0,
+      salidas: parseInt(formData.salidas) || 0,
+      saldo: 0,
+      kg_totales: parseFloat(formData.kgTotales) || 0,
+      vr_kilo: parseFloat(formData.vrKilo) || 0,
+      fletes: parseFloat(formData.fletes) || 0,
+      comision: parseFloat(formData.comision) || 0,
+      valor_animal: 0,
+      total: 0
+    });
+    setShowExitReasonsModal(true);
   };
 
   const handleExitReasonsSave = async (exitReasons: ExitReasonEntry[]) => {
     setShowExitReasonsModal(false);
-    // Los detalles de salida se guardarán cuando se guarde el registro completo
+    
+    // Calcular el total de salidas basado en las razones
+    const totalSalidas = exitReasons.reduce((sum, reason) => sum + reason.cantidad, 0);
+    
+    // Actualizar el formulario con el total de salidas
+    setFormData(prev => ({
+      ...prev,
+      salidas: totalSalidas.toString()
+    }));
+    
+    // Guardar los detalles de salida y ventas si es necesario
+    if (exitReasons.length > 0) {
+      try {
+        // Primero guardar el registro principal
+        const nuevoRegistro = {
+          socio: formData.socio.trim().toUpperCase(),
+          fecha: formData.fecha,
+          entradas: parseFloat(formData.entradas) || 0,
+          salidas: totalSalidas,
+          saldo: (parseFloat(formData.entradas) || 0) - totalSalidas,
+          kg_totales: parseFloat(formData.kgTotales) || 0,
+          vr_kilo: parseFloat(formData.vrKilo) || 0,
+          fletes: parseFloat(formData.fletes) || 0,
+          comision: parseFloat(formData.comision) || 0,
+          valor_animal: resultados.valorAnimal,
+          total: resultados.total
+        };
+
+        const { data: registroGuardado, error: registroError } = await supabase
+          .from('registros')
+          .insert([nuevoRegistro])
+          .select()
+          .single();
+
+        if (registroError) throw registroError;
+
+        // Guardar detalles de salida
+        for (const reason of exitReasons) {
+          if (reason.cantidad > 0) {
+            const { error: salidaError } = await supabase
+              .from('salidas_detalle')
+              .insert([{
+                registro_id: registroGuardado.id,
+                socio: formData.socio.trim().toUpperCase(),
+                fecha: formData.fecha,
+                cantidad: reason.cantidad,
+                causa: reason.causa
+              }]);
+
+            if (salidaError) throw salidaError;
+
+            // Si es venta, guardar también en tabla ventas
+            if (reason.causa === 'ventas' && reason.valor_kilo_venta && reason.total_kilos_venta) {
+              const totalVenta = reason.valor_kilo_venta * reason.total_kilos_venta;
+              
+              const { error: ventaError } = await supabase
+                .from('ventas')
+                .insert([{
+                  registro_id: registroGuardado.id,
+                  socio: formData.socio.trim().toUpperCase(),
+                  fecha: formData.fecha,
+                  valor_kilo_venta: reason.valor_kilo_venta,
+                  total_kilos: reason.total_kilos_venta,
+                  valor_venta: totalVenta,
+                  observaciones: reason.observaciones || 'venta',
+                  total_venta: totalVenta
+                }]);
+
+              if (ventaError) throw ventaError;
+            }
+          }
+        }
+
+        // Recargar registros
+        await loadRegistros();
+
+        // Limpiar formulario
+        setFormData({
+          socio: '',
+          fecha: '',
+          entradas: '',
+          salidas: '',
+          kgTotales: '',
+          vrKilo: '',
+          fletes: '',
+          comision: ''
+        });
+
+        alert('Registro guardado exitosamente.');
+      } catch (error) {
+        console.error('Error saving registro with exit details:', error);
+        alert('Error al guardar el registro');
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -240,6 +333,18 @@ function App() {
       return;
     }
 
+    // Si no hay salidas, guardar directamente
+    const salidas = parseFloat(formData.salidas) || 0;
+    if (salidas === 0) {
+      await guardarRegistroDirecto();
+      return;
+    }
+
+    // Si hay salidas, abrir modal para especificar causas
+    handleSalidasClick();
+  };
+
+  const guardarRegistroDirecto = async () => {
     try {
       setLoading(true);
 
@@ -265,19 +370,6 @@ function App() {
 
       if (error) throw error;
 
-      // Si hay salidas, necesitamos guardar los detalles
-      const salidas = parseFloat(formData.salidas) || 0;
-      if (salidas > 0) {
-        // Mostrar modal para especificar causas de salida
-        setSelectedRegistroForExits({
-          ...data,
-          kg_totales: data.kg_totales,
-          vr_kilo: data.vr_kilo,
-          valor_animal: data.valor_animal
-        });
-        setShowExitReasonsModal(true);
-      }
-
       // Recargar registros
       await loadRegistros();
 
@@ -298,9 +390,7 @@ function App() {
         comision: ''
       });
 
-      if (salidas === 0) {
-        alert('Registro guardado exitosamente.');
-      }
+      alert('Registro guardado exitosamente.');
     } catch (error) {
       console.error('Error saving registro:', error);
       alert('Error al guardar el registro');
@@ -598,8 +688,10 @@ function App() {
                       name="salidas"
                       value={formData.salidas}
                       onChange={handleSalidasChange}
+                      onClick={handleSalidasClick}
                       min="0"
                       step="1"
+                      placeholder="Clic para especificar salidas"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                     />
                   </div>

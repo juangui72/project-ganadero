@@ -36,6 +36,19 @@ export interface SalidaDetalle {
   created_at?: string;
 }
 
+export interface Venta {
+  id: string;
+  registro_id: string;
+  socio: string;
+  fecha: string;
+  valor_kilo_venta: number;
+  total_kilos: number;
+  valor_venta: number;
+  observaciones: string;
+  total_venta: number;
+  created_at?: string;
+}
+
 export type CausaSalida = 'ventas' | 'muerte' | 'robo';
 
 export const causaSalidaLabels: Record<CausaSalida, string> = {
