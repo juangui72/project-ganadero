@@ -67,7 +67,7 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
   }, [isOpen, existingReasons]);
 
   const handleQuantityChange = (causa: CausaSalida, cantidad: number) => {
-    const newCantidad = Math.max(0, cantidad);
+    const newCantidad = Math.max(0, Math.min(cantidad, totalExits));
     
     setExitReasons(prev => 
       prev.map(entry => 
@@ -77,17 +77,14 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
       )
     );
     
-    // Si es ventas y se ingresa una cantidad > 0, abrir modal de ventas
-    if (causa === 'ventas' && newCantidad > 0) {
-      const currentVentasEntry = exitReasons.find(e => e.causa === 'ventas');
-      if (!currentVentasEntry || cantidad !== currentVentasEntry.cantidad) {
-        setVentasData({
-          cantidad: newCantidad,
-          valor_kilo_venta: 0,
-          total_kilos_venta: 0
-        });
-        setShowVentasModal(true);
-      }
+    // Si es ventas y se ingresa una cantidad > 0, abrir modal de ventas  
+    if (causa === 'ventas' && newCantidad > 0 && newCantidad !== exitReasons.find(e => e.causa === 'ventas')?.cantidad) {
+      setVentasData({
+        cantidad: newCantidad,
+        valor_kilo_venta: 0,
+        total_kilos_venta: 0
+      });
+      setShowVentasModal(true);
     }
     
     setError('');
@@ -237,7 +234,11 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
                     min="0"
                     max={totalExits}
                     value={entry.cantidad}
-                    onChange={(e) => handleQuantityChange(entry.causa, parseInt(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = value === '' ? 0 : parseInt(value);
+                      handleQuantityChange(entry.causa, numValue);
+                    }}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                     placeholder="0"
                   />
@@ -257,6 +258,17 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
                       rows={2}
                       placeholder={`Motivo de ${entry.causa}...`}
                     />
+                  </div>
+                )}
+                
+                {/* Mostrar información de venta si es ventas y tiene cantidad */}
+                {entry.causa === 'ventas' && entry.cantidad > 0 && entry.valor_kilo_venta && (
+                  <div className="mt-3 p-2 bg-green-100 rounded-lg">
+                    <div className="text-sm text-green-700">
+                      <div>Valor/Kg: ${entry.valor_kilo_venta?.toLocaleString('es-CO')}</div>
+                      <div>Total Kg: {entry.total_kilos_venta} kg</div>
+                      <div className="font-semibold">Total: ${((entry.valor_kilo_venta || 0) * (entry.total_kilos_venta || 0)).toLocaleString('es-CO')}</div>
+                    </div>
                   </div>
                 )}
               </div>
