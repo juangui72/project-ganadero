@@ -69,8 +69,83 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
   const handleQuantityChange = (causa: CausaSalida, cantidad: number) => {
     const newCantidad = Math.max(0, cantidad);
     
+    setExitReasons(prev => 
+      prev.map(entry => 
+        entry.causa === causa 
+          ? { ...entry, cantidad: newCantidad }
+          : entry
+      )
+    );
+    
     // Si es ventas y se ingresa una cantidad > 0, abrir modal de ventas
-    if (causa === 'ventas' && newCantidad > 0 && cantidad !== exitReasons.find(e => e.causa === 'ventas')?.cantidad) {
+    if (causa === 'ventas' && newCantidad > 0) {
+      const currentVentasEntry = exitReasons.find(e => e.causa === 'ventas');
+      if (!currentVentasEntry || cantidad !== currentVentasEntry.cantidad) {
+        setVentasData({
+          cantidad: newCantidad,
+          valor_kilo_venta: 0,
+          total_kilos_venta: 0
+        });
+        setShowVentasModal(true);
+      }
+    }
+    
+    setError('');
+  };
+
+  const handleObservacionesChange = (causa: CausaSalida, observacion: string) => {
+    setObservaciones(prev => ({
+      ...prev,
+      [causa]: observacion
+    }));
+    
+    // Actualizar también en exitReasons
+    setExitReasons(prev => 
+      prev.map(entry => 
+        entry.causa === causa 
+          ? { ...entry, observaciones: observacion }
+          : entry
+      )
+    );
+  };
+
+  const handleVentasModalSave = () => {
+    setExitReasons(prev => 
+      prev.map(entry => 
+        entry.causa === 'ventas' 
+          ? { 
+              ...entry, 
+              cantidad: ventasData.cantidad,
+              valor_kilo_venta: ventasData.valor_kilo_venta,
+              total_kilos_venta: ventasData.total_kilos_venta,
+              observaciones: 'venta'
+            }
+          : entry
+      )
+    );
+    setShowVentasModal(false);
+  };
+
+  const getTotalAssigned = () => {
+    return exitReasons.reduce((sum, entry) => sum + entry.cantidad, 0);
+  };
+
+  const handleSave = () => {
+    const totalAssigned = getTotalAssigned();
+    
+    if (totalAssigned !== totalExits) {
+      setError(`El total asignado (${totalAssigned}) debe ser igual al total de salidas (${totalExits})`);
+      return;
+    }
+
+    // Filter out entries with 0 quantity and add observaciones
+    const validReasons = exitReasons.filter(entry => entry.cantidad > 0).map(entry => ({
+      ...entry,
+      observaciones: entry.causa === 'ventas' ? 'venta' : (observaciones[entry.causa] || '')
+    }));
+    
+    onSave(validReasons);
+  };
       setVentasData({
         cantidad: newCantidad,
         valor_kilo_venta: 0,
