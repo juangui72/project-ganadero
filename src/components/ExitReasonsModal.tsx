@@ -152,10 +152,22 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
                 type="number"
                 min="0"
                 max={totalExits}
-                value={cantidadVentas || ''}
-                onChange={(e) => handleCantidadChange(e.target.value)}
+                value={cantidadVentas === 0 ? '' : cantidadVentas}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    setCantidadVentas(0);
+                  } else {
+                    const cantidad = parseInt(value);
+                    if (!isNaN(cantidad) && cantidad >= 0 && cantidad <= totalExits) {
+                      setCantidadVentas(cantidad);
+                    }
+                  }
+                  setError('');
+                }}
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                 placeholder="0"
+                autoFocus
               />
             </div>
           </div>
