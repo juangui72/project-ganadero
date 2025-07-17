@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertTriangle, DollarSign, Skull, Shield, MessageSquare } from 'lucide-react';
-import { supabase, CausaSalida, causaSalidaLabels } from '../lib/supabase';
+import { X, AlertTriangle, DollarSign } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface ExitReasonsModalProps {
   isOpen: boolean;
@@ -10,11 +10,10 @@ interface ExitReasonsModalProps {
   socio: string;
   fecha: string;
   registroId?: string;
-  existingReasons?: ExitReasonEntry[];
 }
 
 export interface ExitReasonEntry {
-  causa: CausaSalida;
+  causa: 'ventas';
   cantidad: number;
   observaciones?: string;
   valor_kilo_venta?: number;
@@ -28,140 +27,84 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
   totalExits,
   socio,
   fecha,
-  registroId,
-  existingReasons = []
+  registroId
 }) => {
-  const [exitReasons, setExitReasons] = useState<ExitReasonEntry[]>([]);
+  const [cantidadVentas, setCantidadVentas] = useState<number>(0);
   const [error, setError] = useState<string>('');
   const [showVentasModal, setShowVentasModal] = useState(false);
   const [ventasData, setVentasData] = useState({
-    cantidad: 0,
     valor_kilo_venta: 0,
     total_kilos_venta: 0
   });
 
   useEffect(() => {
     if (isOpen) {
-      if (existingReasons.length > 0) {
-        setExitReasons(existingReasons);
-      } else {
-        // Initialize with empty entries for each cause
-        setExitReasons([
-          { causa: 'ventas', cantidad: 0, observaciones: 'venta' },
-          { causa: 'muerte', cantidad: 0, observaciones: '' },
-          { causa: 'robo', cantidad: 0, observaciones: '' }
-        ]);
-      }
+      setCantidadVentas(0);
+      setVentasData({
+        valor_kilo_venta: 0,
+        total_kilos_venta: 0
+      });
       setError('');
     }
-  }, [isOpen, existingReasons]);
+  }, [isOpen]);
 
-  const handleQuantityChange = (causa: CausaSalida, value: string) => {
+  const handleCantidadChange = (value: string) => {
     const cantidad = value === '' ? 0 : Math.max(0, Math.min(parseInt(value) || 0, totalExits));
-    
-    setExitReasons(prev => 
-      prev.map(entry => 
-        entry.causa === causa 
-          ? { ...entry, cantidad }
-          : entry
-      )
-    );
-    
-    // Si es ventas y se ingresa una cantidad > 0, abrir modal de ventas  
-    if (causa === 'ventas' && cantidad > 0) {
-      const currentVentasEntry = exitReasons.find(e => e.causa === 'ventas');
-      if (cantidad !== currentVentasEntry?.cantidad) {
-        setVentasData({
-          cantidad,
-          valor_kilo_venta: 0,
-          total_kilos_venta: 0
-        });
-        setShowVentasModal(true);
-      }
-    }
-    
+    setCantidadVentas(cantidad);
     setError('');
   };
 
-  const handleObservacionesChange = (causa: CausaSalida, observacion: string) => {
-    setExitReasons(prev => 
-      prev.map(entry => 
-        entry.causa === causa 
-          ? { ...entry, observaciones: observacion }
-          : entry
-      )
-    );
+  const handleVentasClick = () => {
+    if (cantidadVentas > 0) {
+      setShowVentasModal(true);
+    }
   };
 
   const handleVentasModalSave = () => {
-    setExitReasons(prev => 
-      prev.map(entry => 
-        entry.causa === 'ventas' 
-          ? { 
-              ...entry, 
-              cantidad: ventasData.cantidad,
-              valor_kilo_venta: ventasData.valor_kilo_venta,
-              total_kilos_venta: ventasData.total_kilos_venta,
-              observaciones: 'venta'
-            }
-          : entry
-      )
-    );
+    const exitReason: ExitReasonEntry = {
+      causa: 'ventas',
+      cantidad: cantidadVentas,
+      observaciones: 'venta',
+      valor_kilo_venta: ventasData.valor_kilo_venta,
+      total_kilos_venta: ventasData.total_kilos_venta
+    };
+
+    onSave([exitReason]);
     setShowVentasModal(false);
   };
 
-  const getTotalAssigned = () => {
-    return exitReasons.reduce((sum, entry) => sum + entry.cantidad, 0);
-  };
-
   const handleSave = () => {
-    const totalAssigned = getTotalAssigned();
-    
-    if (totalAssigned !== totalExits) {
-      setError(`El total asignado (${totalAssigned}) debe ser igual al total de salidas (${totalExits})`);
+    if (cantidadVentas !== totalExits) {
+      setError(`La cantidad de ventas (${cantidadVentas}) debe ser igual al total de salidas (${totalExits})`);
       return;
     }
 
-    // Filter out entries with 0 quantity
-    const validReasons = exitReasons.filter(entry => entry.cantidad > 0);
-    
-    onSave(validReasons);
-  };
-
-  const getIconForCause = (causa: CausaSalida) => {
-    switch (causa) {
-      case 'ventas':
-        return <DollarSign className="w-5 h-5 text-green-600" />;
-      case 'muerte':
-        return <Skull className="w-5 h-5 text-red-600" />;
-      case 'robo':
-        return <Shield className="w-5 h-5 text-orange-600" />;
-    }
-  };
-
-  const getColorForCause = (causa: CausaSalida) => {
-    switch (causa) {
-      case 'ventas':
-        return 'border-green-200 bg-green-50';
-      case 'muerte':
-        return 'border-red-200 bg-red-50';
-      case 'robo':
-        return 'border-orange-200 bg-orange-50';
+    if (cantidadVentas > 0) {
+      handleVentasClick();
+    } else {
+      // Si no hay ventas, guardar con valores en 0
+      const exitReason: ExitReasonEntry = {
+        causa: 'ventas',
+        cantidad: 0,
+        observaciones: 'venta',
+        valor_kilo_venta: 0,
+        total_kilos_venta: 0
+      };
+      onSave([exitReason]);
     }
   };
 
   if (!isOpen) return null;
 
-  const totalAssigned = getTotalAssigned();
-  const remaining = totalExits - totalAssigned;
+  const totalVenta = ventasData.valor_kilo_venta * ventasData.total_kilos_venta;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">
-              Detalle de Salidas
+              Detalle de Salidas - Ventas
             </h3>
             <p className="text-sm text-gray-600 mt-1">
               {socio} - {new Date(fecha + 'T00:00:00').toLocaleDateString('es-CO')}
@@ -181,9 +124,6 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
               <span className="text-sm font-medium text-gray-700">
                 Total de salidas: <span className="font-bold text-gray-900">{totalExits}</span>
               </span>
-              <span className={`text-sm font-medium ${remaining === 0 ? 'text-green-600' : 'text-orange-600'}`}>
-                Restante: {remaining}
-              </span>
             </div>
             
             {error && (
@@ -194,74 +134,39 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
             )}
           </div>
 
-          <div className="space-y-4">
-            {exitReasons.map((entry) => (
-              <div
-                key={entry.causa}
-                className={`p-4 border-2 rounded-lg ${getColorForCause(entry.causa)}`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center">
-                    {getIconForCause(entry.causa)}
-                    <span className="ml-2 font-medium text-gray-900">
-                      {causaSalidaLabels[entry.causa]}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <label className="text-sm text-gray-600 min-w-0 flex-shrink-0">
-                    Cantidad:
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max={totalExits}
-                    value={entry.cantidad || ''}
-                    onChange={(e) => handleQuantityChange(entry.causa, e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                    placeholder="0"
-                  />
-                </div>
-                
-                {/* Campo de observaciones para muerte y robo */}
-                {(entry.causa === 'muerte' || entry.causa === 'robo') && entry.cantidad > 0 && (
-                  <div className="mt-3">
-                    <label className="text-sm text-gray-600 block mb-1">
-                      <MessageSquare className="w-4 h-4 inline mr-1" />
-                      Observaciones:
-                    </label>
-                    <textarea
-                      value={entry.observaciones || ''}
-                      onChange={(e) => handleObservacionesChange(entry.causa, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors resize-none"
-                      rows={2}
-                      placeholder={`Motivo de ${entry.causa}...`}
-                    />
-                  </div>
-                )}
-                
-                {/* Mostrar información de venta si es ventas y tiene cantidad */}
-                {entry.causa === 'ventas' && entry.cantidad > 0 && entry.valor_kilo_venta && (
-                  <div className="mt-3 p-2 bg-green-100 rounded-lg">
-                    <div className="text-sm text-green-700">
-                      <div>Valor/Kg: ${entry.valor_kilo_venta?.toLocaleString('es-CO')}</div>
-                      <div>Total Kg: {entry.total_kilos_venta} kg</div>
-                      <div className="font-semibold">Total: ${((entry.valor_kilo_venta || 0) * (entry.total_kilos_venta || 0)).toLocaleString('es-CO')}</div>
-                    </div>
-                  </div>
-                )}
+          <div className="p-4 border-2 rounded-lg border-green-200 bg-green-50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center">
+                <DollarSign className="w-5 h-5 text-green-600" />
+                <span className="ml-2 font-medium text-gray-900">
+                  Ventas
+                </span>
               </div>
-            ))}
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <label className="text-sm text-gray-600 min-w-0 flex-shrink-0">
+                Cantidad:
+              </label>
+              <input
+                type="number"
+                min="0"
+                max={totalExits}
+                value={cantidadVentas || ''}
+                onChange={(e) => handleCantidadChange(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                placeholder="0"
+              />
+            </div>
           </div>
 
           <div className="mt-6 pt-4 border-t border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-medium text-gray-700">
-                Total asignado:
+                Cantidad asignada:
               </span>
-              <span className={`font-bold ${totalAssigned === totalExits ? 'text-green-600' : 'text-orange-600'}`}>
-                {totalAssigned} / {totalExits}
+              <span className={`font-bold ${cantidadVentas === totalExits ? 'text-green-600' : 'text-orange-600'}`}>
+                {cantidadVentas} / {totalExits}
               </span>
             </div>
             
@@ -274,10 +179,10 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
               </button>
               <button
                 onClick={handleSave}
-                disabled={totalAssigned !== totalExits}
+                disabled={cantidadVentas !== totalExits}
                 className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
-                Guardar
+                Continuar
               </button>
             </div>
           </div>
@@ -301,53 +206,53 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
               </div>
               
               <div className="p-6 space-y-4">
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <div className="text-sm text-blue-700">
+                    <strong>Cantidad de animales:</strong> {cantidadVentas}
+                  </div>
+                </div>
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cantidad de animales vendidos
+                    Valor por Kg de Venta *
                   </label>
                   <input
                     type="number"
-                    value={ventasData.cantidad}
-                    onChange={(e) => setVentasData(prev => ({ ...prev, cantidad: parseInt(e.target.value) || 0 }))}
+                    value={ventasData.valor_kilo_venta || ''}
+                    onChange={(e) => setVentasData(prev => ({ 
+                      ...prev, 
+                      valor_kilo_venta: parseFloat(e.target.value) || 0 
+                    }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                     min="0"
-                    max={totalExits}
+                    step="0.01"
+                    placeholder="0.00"
+                    required
                   />
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Valor por Kg de Venta
+                    Total Kg Vendidos *
                   </label>
                   <input
                     type="number"
-                    value={ventasData.valor_kilo_venta}
-                    onChange={(e) => setVentasData(prev => ({ ...prev, valor_kilo_venta: parseFloat(e.target.value) || 0 }))}
+                    value={ventasData.total_kilos_venta || ''}
+                    onChange={(e) => setVentasData(prev => ({ 
+                      ...prev, 
+                      total_kilos_venta: parseFloat(e.target.value) || 0 
+                    }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                     min="0"
                     step="0.01"
                     placeholder="0.00"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Total Kg Vendidos
-                  </label>
-                  <input
-                    type="number"
-                    value={ventasData.total_kilos_venta}
-                    onChange={(e) => setVentasData(prev => ({ ...prev, total_kilos_venta: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
+                    required
                   />
                 </div>
                 
                 <div className="bg-green-50 p-3 rounded-lg">
                   <div className="text-sm text-green-700">
-                    <strong>Total Venta:</strong> ${Math.round(ventasData.valor_kilo_venta * ventasData.total_kilos_venta).toLocaleString('es-CO')}
+                    <strong>Total Venta:</strong> ${Math.round(totalVenta).toLocaleString('es-CO')}
                   </div>
                 </div>
                 
@@ -360,7 +265,8 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
                   </button>
                   <button
                     onClick={handleVentasModalSave}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    disabled={!ventasData.valor_kilo_venta || !ventasData.total_kilos_venta}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                   >
                     Guardar Venta
                   </button>

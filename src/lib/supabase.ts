@@ -32,7 +32,7 @@ export interface SalidaDetalle {
   socio: string;
   fecha: string;
   cantidad: number;
-  causa: 'ventas' | 'muerte' | 'robo';
+  causa: 'ventas';
   created_at?: string;
 }
 
@@ -49,10 +49,8 @@ export interface Venta {
   created_at?: string;
 }
 
-export type CausaSalida = 'ventas' | 'muerte' | 'robo';
+export type CausaSalida = 'ventas';
 
 export const causaSalidaLabels: Record<CausaSalida, string> = {
-  ventas: 'Ventas',
-  muerte: 'Muerte',
-  robo: 'Robo'
+  ventas: 'Ventas'
 };
