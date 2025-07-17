@@ -39,11 +39,6 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
     valor_kilo_venta: 0,
     total_kilos_venta: 0
   });
-  const [observaciones, setObservaciones] = useState<Record<CausaSalida, string>>({
-    ventas: 'venta',
-    muerte: '',
-    robo: ''
-  });
 
   useEffect(() => {
     if (isOpen) {
@@ -52,51 +47,43 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
       } else {
         // Initialize with empty entries for each cause
         setExitReasons([
-          { causa: 'ventas', cantidad: 0 },
-          { causa: 'muerte', cantidad: 0 },
-          { causa: 'robo', cantidad: 0 }
+          { causa: 'ventas', cantidad: 0, observaciones: 'venta' },
+          { causa: 'muerte', cantidad: 0, observaciones: '' },
+          { causa: 'robo', cantidad: 0, observaciones: '' }
         ]);
       }
-      setObservaciones({
-        ventas: 'venta',
-        muerte: '',
-        robo: ''
-      });
       setError('');
     }
   }, [isOpen, existingReasons]);
 
-  const handleQuantityChange = (causa: CausaSalida, cantidad: number) => {
-    const newCantidad = Math.max(0, Math.min(cantidad, totalExits));
+  const handleQuantityChange = (causa: CausaSalida, value: string) => {
+    const cantidad = value === '' ? 0 : Math.max(0, Math.min(parseInt(value) || 0, totalExits));
     
     setExitReasons(prev => 
       prev.map(entry => 
         entry.causa === causa 
-          ? { ...entry, cantidad: newCantidad }
+          ? { ...entry, cantidad }
           : entry
       )
     );
     
     // Si es ventas y se ingresa una cantidad > 0, abrir modal de ventas  
-    if (causa === 'ventas' && newCantidad > 0 && newCantidad !== exitReasons.find(e => e.causa === 'ventas')?.cantidad) {
-      setVentasData({
-        cantidad: newCantidad,
-        valor_kilo_venta: 0,
-        total_kilos_venta: 0
-      });
-      setShowVentasModal(true);
+    if (causa === 'ventas' && cantidad > 0) {
+      const currentVentasEntry = exitReasons.find(e => e.causa === 'ventas');
+      if (cantidad !== currentVentasEntry?.cantidad) {
+        setVentasData({
+          cantidad,
+          valor_kilo_venta: 0,
+          total_kilos_venta: 0
+        });
+        setShowVentasModal(true);
+      }
     }
     
     setError('');
   };
 
   const handleObservacionesChange = (causa: CausaSalida, observacion: string) => {
-    setObservaciones(prev => ({
-      ...prev,
-      [causa]: observacion
-    }));
-    
-    // Actualizar también en exitReasons
     setExitReasons(prev => 
       prev.map(entry => 
         entry.causa === causa 
@@ -135,11 +122,8 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
       return;
     }
 
-    // Filter out entries with 0 quantity and add observaciones
-    const validReasons = exitReasons.filter(entry => entry.cantidad > 0).map(entry => ({
-      ...entry,
-      observaciones: entry.causa === 'ventas' ? 'venta' : (observaciones[entry.causa] || '')
-    }));
+    // Filter out entries with 0 quantity
+    const validReasons = exitReasons.filter(entry => entry.cantidad > 0);
     
     onSave(validReasons);
   };
@@ -233,12 +217,8 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
                     type="number"
                     min="0"
                     max={totalExits}
-                    value={entry.cantidad}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      const numValue = value === '' ? 0 : parseInt(value);
-                      handleQuantityChange(entry.causa, numValue);
-                    }}
+                    value={entry.cantidad || ''}
+                    onChange={(e) => handleQuantityChange(entry.causa, e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                     placeholder="0"
                   />
@@ -252,7 +232,7 @@ const ExitReasonsModal: React.FC<ExitReasonsModalProps> = ({
                       Observaciones:
                     </label>
                     <textarea
-                      value={observaciones[entry.causa]}
+                      value={entry.observaciones || ''}
                       onChange={(e) => handleObservacionesChange(entry.causa, e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors resize-none"
                       rows={2}
