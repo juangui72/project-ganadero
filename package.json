@@ -3,10 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "description": "Sistema de registro ganadero por socios",
-  "author": "yuumrico@gmail.com",
+  "author": "guiguiriosbit@gmail.com",
   "repository": {
     "type": "git",
-    "url": "git@github.com:juangui72/project-ganadero.git"
+    "url": "https://github.com/guiguiriosbit/registros-ganaderos.git"
   },
   "type": "module",
   "scripts": {
