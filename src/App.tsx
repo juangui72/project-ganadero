@@ -207,6 +207,7 @@ function App() {
   const guardarRegistroDirecto = async () => {
     try {
       setLoading(true);
+      setError('');
 
       const nuevoRegistro = {
         socio: formData.socio.trim().toUpperCase(),
@@ -222,13 +223,20 @@ function App() {
         total: resultados.total
       };
 
+      console.log('Intentando guardar registro:', nuevoRegistro);
+
       const { data, error } = await supabase
         .from('registros')
         .insert([nuevoRegistro])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error de Supabase:', error);
+        throw new Error(`Error al guardar: ${error.message}`);
+      }
+
+      console.log('Registro guardado exitosamente:', data);
 
       // Recargar registros
       await loadRegistros();
@@ -253,7 +261,9 @@ function App() {
       alert('Registro guardado exitosamente.');
     } catch (error) {
       console.error('Error saving registro:', error);
-      alert('Error al guardar el registro');
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al guardar el registro';
+      setError(errorMessage);
+      alert(`Error al guardar el registro: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
