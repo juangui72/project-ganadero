@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Save, BarChart3, AlertCircle, Search, Users, Calendar, Trash2, Edit3, Check, X, Eye, DollarSign } from 'lucide-react';
+import { Calculator, Save, BarChart3, AlertCircle, Search, Users, Calendar, Trash2, Edit3, Check, X, DollarSign } from 'lucide-react';
 import { supabase, Registro, SalidaDetalle } from './lib/supabase';
-import ExitReasonsModal, { ExitReasonEntry } from './components/ExitReasonsModal';
-import ExitDetailsModal from './components/ExitDetailsModal';
 import SalesTableModal from './components/SalesTableModal';
 
 function App() {
@@ -30,12 +28,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   
-  // Modal states
-  const [showExitReasonsModal, setShowExitReasonsModal] = useState(false);
-  const [showExitDetailsModal, setShowExitDetailsModal] = useState(false);
   const [showSalesTableModal, setShowSalesTableModal] = useState(false);
-  const [selectedExitDetails, setSelectedExitDetails] = useState<SalidaDetalle[]>([]);
-  const [selectedRegistroForExits, setSelectedRegistroForExits] = useState<Registro | null>(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -200,131 +193,6 @@ function App() {
     }));
   };
 
-  const handleSalidasChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSalidasClick = () => {
-    // Abrir modal sin importar si hay valor o no
-    setSelectedRegistroForExits({
-      id: '',
-      socio: formData.socio,
-      fecha: formData.fecha,
-      entradas: parseInt(formData.entradas) || 0,
-      salidas: parseInt(formData.salidas) || 0,
-      saldo: 0,
-      kg_totales: parseFloat(formData.kgTotales) || 0,
-      vr_kilo: parseFloat(formData.vrKilo) || 0,
-      fletes: parseFloat(formData.fletes) || 0,
-      comision: parseFloat(formData.comision) || 0,
-      valor_animal: 0,
-      total: 0
-    });
-    setShowExitReasonsModal(true);
-  };
-
-  const handleExitReasonsSave = async (exitReasons: ExitReasonEntry[]) => {
-    setShowExitReasonsModal(false);
-    
-    // Calcular el total de salidas basado en las razones
-    const totalSalidas = exitReasons.reduce((sum, reason) => sum + reason.cantidad, 0);
-    
-    // Actualizar el formulario con el total de salidas
-    setFormData(prev => ({
-      ...prev,
-      salidas: totalSalidas.toString()
-    }));
-    
-    // Guardar los detalles de salida y ventas si es necesario
-    if (exitReasons.length > 0) {
-      try {
-        // Primero guardar el registro principal
-        const nuevoRegistro = {
-          socio: formData.socio.trim().toUpperCase(),
-          fecha: formData.fecha,
-          entradas: parseFloat(formData.entradas) || 0,
-          salidas: totalSalidas,
-          saldo: (parseFloat(formData.entradas) || 0) - totalSalidas,
-          kg_totales: parseFloat(formData.kgTotales) || 0,
-          vr_kilo: parseFloat(formData.vrKilo) || 0,
-          fletes: parseFloat(formData.fletes) || 0,
-          comision: parseFloat(formData.comision) || 0,
-          valor_animal: resultados.valorAnimal,
-          total: resultados.total
-        };
-
-        const { data: registroGuardado, error: registroError } = await supabase
-          .from('registros')
-          .insert([nuevoRegistro])
-          .select()
-          .single();
-
-        if (registroError) throw registroError;
-
-        // Guardar detalles de salida
-        for (const reason of exitReasons) {
-          if (reason.cantidad > 0) {
-            const { error: salidaError } = await supabase
-              .from('salidas_detalle')
-              .insert([{
-                registro_id: registroGuardado.id,
-                socio: formData.socio.trim().toUpperCase(),
-                fecha: formData.fecha,
-                cantidad: reason.cantidad,
-                causa: reason.causa
-              }]);
-
-            if (salidaError) throw salidaError;
-
-            // Si es venta, guardar también en tabla ventas
-            if (reason.causa === 'ventas' && reason.valor_kilo_venta && reason.total_kilos_venta) {
-              const totalVenta = reason.valor_kilo_venta * reason.total_kilos_venta;
-              
-              const { error: ventaError } = await supabase
-                .from('ventas')
-                .insert([{
-                  registro_id: registroGuardado.id,
-                  socio: formData.socio.trim().toUpperCase(),
-                  fecha: formData.fecha,
-                  valor_kilo_venta: reason.valor_kilo_venta,
-                  total_kilos: reason.total_kilos_venta,
-                  valor_venta: totalVenta,
-                  observaciones: reason.observaciones || 'venta',
-                  total_venta: totalVenta
-                }]);
-
-              if (ventaError) throw ventaError;
-            }
-          }
-        }
-
-        // Recargar registros
-        await loadRegistros();
-
-        // Limpiar formulario
-        setFormData({
-          socio: '',
-          fecha: '',
-          entradas: '',
-          salidas: '',
-          kgTotales: '',
-          vrKilo: '',
-          fletes: '',
-          comision: ''
-        });
-
-        alert('Registro guardado exitosamente.');
-      } catch (error) {
-        console.error('Error saving registro with exit details:', error);
-        alert('Error al guardar el registro');
-      }
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -333,15 +201,7 @@ function App() {
       return;
     }
 
-    // Si no hay salidas, guardar directamente
-    const salidas = parseFloat(formData.salidas) || 0;
-    if (salidas === 0) {
-      await guardarRegistroDirecto();
-      return;
-    }
-
-    // Si hay salidas, abrir modal para especificar causas
-    handleSalidasClick();
+    await guardarRegistroDirecto();
   };
 
   const guardarRegistroDirecto = async () => {
@@ -488,21 +348,8 @@ function App() {
   };
 
   const showExitDetails = async (registro: Registro) => {
-    try {
-      const { data, error } = await supabase
-        .from('salidas_detalle')
-        .select('*')
-        .eq('registro_id', registro.id);
-
-      if (error) throw error;
-
-      setSelectedExitDetails(data || []);
-      setSelectedRegistroForExits(registro);
-      setShowExitDetailsModal(true);
-    } catch (error) {
-      console.error('Error loading exit details:', error);
-      alert('Error al cargar los detalles de salida');
-    }
+    // Funcionalidad removida - el campo salidas ahora es solo un input simple
+    console.log('Campo salidas simplificado - no hay detalles para mostrar');
   };
 
   const formatCurrency = (value: number) => {
@@ -687,11 +534,9 @@ function App() {
                       type="number"
                       name="salidas"
                       value={formData.salidas}
-                      onChange={handleSalidasChange}
-                      onClick={handleSalidasClick}
+                      onChange={handleInputChange}
                       min="0"
                       step="1"
-                      placeholder="Clic para especificar salidas"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                     />
                   </div>
@@ -1000,16 +845,7 @@ function App() {
                                   min="0"
                                 />
                               ) : (
-                                <button
-                                  onClick={() => showExitDetails(registro)}
-                                  className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-                                  title="Ver detalles de salidas"
-                                >
-                                  {registro.salidas || 0}
-                                  {(registro.salidas || 0) > 0 && (
-                                    <Eye className="w-3 h-3 ml-1" />
-                                  )}
-                                </button>
+                                registro.salidas || 0
                               )}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
@@ -1116,29 +952,10 @@ function App() {
       </div>
 
       {/* Modales */}
-      <ExitReasonsModal
-        isOpen={showExitReasonsModal}
-        onClose={() => setShowExitReasonsModal(false)}
-        onSave={handleExitReasonsSave}
-        totalExits={selectedRegistroForExits?.salidas || 0}
-        socio={selectedRegistroForExits?.socio || ''}
-        fecha={selectedRegistroForExits?.fecha || ''}
-        registroId={selectedRegistroForExits?.id}
-      />
-
       <SalesTableModal
         isOpen={showSalesTableModal}
         onClose={() => setShowSalesTableModal(false)}
         socioSeleccionado={socioSeleccionado}
-      />
-
-      <ExitDetailsModal
-        isOpen={showExitDetailsModal}
-        onClose={() => setShowExitDetailsModal(false)}
-        exitDetails={selectedExitDetails}
-        socio={selectedRegistroForExits?.socio || ''}
-        fecha={selectedRegistroForExits?.fecha || ''}
-        totalExits={selectedRegistroForExits?.salidas || 0}
       />
     </div>
   );
