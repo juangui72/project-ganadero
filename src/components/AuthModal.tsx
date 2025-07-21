@@ -20,11 +20,30 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
     setError('');
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // First try to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: 'admin@ganaderos.com',
         password: 'admin123456',
       });
-      if (error) throw error;
+      
+      // If sign in fails, try to create the user first
+      if (signInError) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: 'admin@ganaderos.com',
+          password: 'admin123456',
+        });
+        
+        if (signUpError) throw signUpError;
+        
+        // Now try to sign in again
+        const { error: secondSignInError } = await supabase.auth.signInWithPassword({
+          email: 'admin@ganaderos.com',
+          password: 'admin123456',
+        });
+        
+        if (secondSignInError) throw secondSignInError;
+      }
+      
       onAuthSuccess();
       onClose();
     } catch (error) {
