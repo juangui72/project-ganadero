@@ -15,6 +15,25 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const loginAsAdmin = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: 'admin@ganaderos.com',
+        password: 'admin123456',
+      });
+      if (error) throw error;
+      onAuthSuccess();
+      onClose();
+    } catch (error) {
+      console.error('Admin login error:', error);
+      setError('Error al iniciar sesión como administrador');
+    } finally {
+      setLoading(false);
+    }
+  };
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,11 +135,27 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
 
         <div className="mt-4 text-center">
           <button
+            onClick={loginAsAdmin}
+            disabled={loading}
+            className="w-full mb-3 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+          >
+            {loading ? 'Procesando...' : 'Iniciar como Administrador'}
+          </button>
+          
+          <button
             onClick={() => setIsSignUp(!isSignUp)}
             className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
           >
             {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
           </button>
+        </div>
+        
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Credenciales de Administrador:</h4>
+          <div className="text-xs text-gray-600 space-y-1">
+            <div><strong>Email:</strong> admin@ganaderos.com</div>
+            <div><strong>Contraseña:</strong> admin123456</div>
+          </div>
         </div>
       </div>
     </div>
