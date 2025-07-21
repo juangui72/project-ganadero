@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Save, BarChart3, AlertCircle, Search, Users, Calendar, Trash2, Edit3, Check, X, DollarSign } from 'lucide-react';
+import { Calculator, Save, BarChart3, AlertCircle, Search, Users, Calendar, Trash2, Edit3, Check, X, DollarSign, LogOut, User } from 'lucide-react';
 import { supabase, Registro, SalidaDetalle } from './lib/supabase';
 import SalesTableModal from './components/SalesTableModal';
+import AuthModal from './components/AuthModal';
 
 function App() {
   const [registros, setRegistros] = useState<Registro[]>([]);
@@ -29,6 +30,9 @@ function App() {
   const [error, setError] = useState<string>('');
   
   const [showSalesTableModal, setShowSalesTableModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -37,15 +41,65 @@ function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    loadRegistros();
+    // Check authentication status
+    checkAuthStatus();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+        setAuthLoading(false);
+        
+        if (session?.user) {
+          loadRegistros();
+        } else {
+          setRegistros([]);
+          setSocioSeleccionado('');
+        }
+      }
+    );
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      subscription.unsubscribe();
     };
   }, []);
 
+  const checkAuthStatus = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        loadRegistros();
+      }
+    } catch (error) {
+      console.error('Error checking auth status:', error);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setRegistros([]);
+      setSocioSeleccionado('');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  const handleAuthSuccess = () => {
+    // Auth state change will be handled by the listener
+    loadRegistros();
+  };
+
   const loadRegistros = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -205,6 +259,11 @@ function App() {
   };
 
   const guardarRegistroDirecto = async () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
@@ -289,6 +348,11 @@ function App() {
   };
 
   const saveEditing = async () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+
     if (!editingId) return;
 
     try {
@@ -335,6 +399,11 @@ function App() {
   };
 
   const limpiarTodosLosDatos = async () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+
     if (window.confirm('¿Estás seguro de que quieres eliminar todos los registros? Esta acción no se puede deshacer.')) {
       try {
         setLoading(true);
@@ -386,6 +455,49 @@ function App() {
     totalAcumulado: registrosDelSocio.reduce((sum, reg) => sum + (reg.total || 0), 0)
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verificando autenticación...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full mx-4">
+          <div className="text-center">
+            <div className="bg-emerald-600 p-3 rounded-full w-16 h-16 mx-auto mb-4">
+              <User className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">
+              Registros Ganaderos
+            </h1>
+            <p className="text-gray-600 mb-6">
+              Inicia sesión para acceder al sistema
+            </p>
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+            >
+              Iniciar Sesión
+            </button>
+          </div>
+        </div>
+        
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onAuthSuccess={handleAuthSuccess}
+        />
+      </div>
+    );
+  }
+
   if (loading && registros.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center">
@@ -403,6 +515,49 @@ function App() {
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div></div>
+              <div className="flex items-center">
+                <div className="bg-emerald-600 p-3 rounded-full mr-4">
+                  <Calculator className="w-8 h-8 text-white" />
+                </div>
+                <h1 className="text-3xl font-bold text-gray-800">
+                  Registros Ganaderos 
+                </h1>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">
+                  {user?.email}
+                </span>
+                <button
+                  onClick={handleSignOut}
+                  className="bg-gray-600 text-white p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                  title="Cerrar Sesión"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <p className="text-gray-600 text-lg">
+              Sistema de Registro Ganadero
+            </p>
+            {isOffline && (
+              <div className="mt-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 mr-2" />
+                Sin conexión - Funcionalidad limitada
+              </div>
+            )}
+            
+            {error && (
+              <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 mr-2" />
+                {error}
+              </div>
+            )}
+          </div>
+
+          {/* Old header content removed */}
+          <div className="hidden">
             <div className="flex items-center justify-center mb-4">
               <div className="bg-emerald-600 p-3 rounded-full mr-4">
                 <Calculator className="w-8 h-8 text-white" />
@@ -966,6 +1121,12 @@ function App() {
         isOpen={showSalesTableModal}
         onClose={() => setShowSalesTableModal(false)}
         socioSeleccionado={socioSeleccionado}
+      />
+      
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={handleAuthSuccess}
       />
     </div>
   );
